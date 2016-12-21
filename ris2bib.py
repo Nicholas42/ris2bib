@@ -43,12 +43,12 @@ def main(argv = sys.argv):
 	argc = len(argv)
 
 	if (argc == 1):
-		print "Usage is ris2bib.py [FILE] [-v]"
+		print ("Usage is ris2bib.py [FILE] [-v]")
 	else:
 		try:
 			ris = open(argv[1],'r+')
 		except:
-			print "Error: No such file."
+			print ("Error: No such file.")
 			return
 		
 		if (argc == 3 and argv[2] == '-v'):
@@ -58,8 +58,8 @@ def main(argv = sys.argv):
 
 		entries = r2b_read(ris, verbose)
 
-		ris.close()
-
+		ris.close()		
+			
 		bib_filename = argv[1][:-4]+'.bib' # strip and replace extension
 
 		r2b_write(entries, bib_filename)
@@ -80,9 +80,9 @@ def r2b_read(ris, verbose):
 			entries['authors'].append(line[6:-1]) # minus one to remove newline
 		elif re.match("VL",line):
 			entries['volume'] = line[6:-1]
-		elif re.match("TI",line):
+		elif re.match("TI",line) or re.match("T1",line):
 			entries['title'] = line[6:-1]
-		elif re.match("JA",line):
+		elif re.match("JA",line) or re.match("JO",line):
 			entries['journal'] = line[6:-1]
 		elif re.match("IS",line):
 			entries['number'] = line[6:-1]
@@ -93,7 +93,7 @@ def r2b_read(ris, verbose):
 		elif re.match("UR",line):
 			entries['url'] = line[6:-1]
 		elif verbose:
-			print 'Unparsed line: ' + line[:-1]
+			print ('Unparsed line: ' + line[:-1])
 	return entries
 		
 def r2b_write(entries,bib_filename):
@@ -105,19 +105,25 @@ def r2b_write(entries,bib_filename):
 	bib = open(bib_filename,'w+') # strip and replace extension
 
 	bib.write('@ARTICLE{' + entries['authors'][0][:entries['authors'][0].index(',')] + \
-		str(entries['year']) + ",") # get surname of first author slicing to ','
-	bib.write('\n\tauthor=\t\"'+entries['authors'][0])
+		(entries['year'] if ('year' in entries) else '') + ",") # get surname of first author slicing to ','
+	bib.write('\n\tauthor=\t{'+entries['authors'][0])
 	for entry in entries['authors'][1:]:
 		bib.write(" and " + entry)
-	bib.write("\",")
-	bib.write('\n\tyear=\t\"'+ entries['year'] + "\",")
-	bib.write("\n\ttitle=\t\"" + entries['title'] + "\",")
-	bib.write("\n\tjournal=\t\"" + entries['journal'] + "\",")
-	bib.write("\n\tvolume=\t\"" + entries['volume'] + "\",")
-	bib.write("\n\tnumber=\t\"" + entries['number'] + "\",")
-	bib.write("\n\tpages=\t\"" + entries['startpage'] + "--" + \
-		entries['endpage'] + "\",")
-	bib.write("\n\turl=\t\t\"" + entries['url'] + "\",")
+	bib.write("},")
+	if 'year' in entries:
+		bib.write('\n\tyear=\t{'+ entries['year'] + "},")
+	if 'title' in entries:
+		bib.write("\n\ttitle=\t{" + entries['title'] + "},")
+	if 'journal' in entries:
+		bib.write("\n\tjournal=\t{" + entries['journal'] + "},")
+	if 'volume' in entries:
+		bib.write("\n\tvolume=\t{" + entries['volume'] + "},")
+	if 'number' in entries:
+		bib.write("\n\tnumber=\t{" + entries['number'] + "},")
+	if 'startpage' in entries:
+		bib.write("\n\tpages=\t{" + entries['startpage'] + "--" + entries['endpage'] + "},")
+	if 'url' in entries:
+		bib.write("\n\turl=\t\t{" + entries['url'] + "},")
 	bib.write("\n}\n")
 
 	bib.close()			
