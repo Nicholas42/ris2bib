@@ -50,6 +50,9 @@ def main(argv):
 
     r2b_write(data, argv.outfile)
 
+def get_value_ris(line):
+    return line.partition("-")[2].strip()
+
 def r2b_read(ris, args):
     """
     Reads in a .ris file and returns a .bib format 'entries' dictionary with the appropriate information.
@@ -61,24 +64,33 @@ def r2b_read(ris, args):
     
     with open(ris) as f:
         for line in f:
+            val = get_value_ris(line)
             if re.match("PY",line):
-                    entries['year'] = line[6:10]
+                    entries['year'] = val
             elif re.match("AU",line):
-                    entries['authors'].append(line[6:-1]) # minus one to remove newline
+                    entries['authors'].append(val) # minus one to remove newline
             elif re.match("VL",line):
-                    entries['volume'] = line[6:-1]
+                    entries['volume'] = val
             elif re.match("TI",line) or re.match("T1",line):
-                    entries['title'] = line[6:-1]
+                    entries['title'] = val
             elif re.match("JA",line) or re.match("JO",line):
-                    entries['journal'] = line[6:-1]
+                    entries['journal'] = val
             elif re.match("IS",line):
-                    entries['number'] = line[6:-1]
+                    entries['number'] = val
             elif re.match("SP",line):
-                    entries['startpage'] = line[6:-1]
+                    entries['startpage'] = val
             elif re.match("EP",line):
-                    entries['endpage'] = line[6:-1]
+                    entries['endpage'] = val
             elif re.match("UR",line):
-                    entries['url'] = line[6:-1]
+                    entries['url'] = val
+            elif re.match("DO", line):
+                    entries["doi"] = val
+            elif re.match("ID", line):
+                    entries["id"] = val
+            elif re.match("SN", line):
+                    entries["issn"] = val
+            elif re.match("DA", line):
+                    entries["year"], entries["month"], entries["day"] = val.split("/") 
             else:
                 unparsed_lines += 1
                 if args.verbose:
@@ -94,28 +106,17 @@ def r2b_write(data, bib_filename):
     """
 
     with open(bib_filename,'a') as bib: # strip and replace extension
-
         for entries in data:
-            bib.write('@ARTICLE{' + entries['authors'][0][:entries['authors'][0].index(',')] + \
-                    (entries['year'] if ('year' in entries) else '') + ",") # get surname of first author slicing to ','
-            bib.write('\n\tauthor=\t{'+entries['authors'][0])
-            for entry in entries['authors'][1:]:
-                    bib.write(" and " + entry)
+            if "startpage" in entries:
+                entries["pages"] = entries.pop("startpage") + "-" + entries.pop("endpage")
+
+            ident = entries.get("id", entries['authors'][0][:entries['authors'][0].index(',')] + (entries['year'] if ('year' in entries) else ''))
+
+            bib.write('@ARTICLE{' + ident + ",") 
+            bib.write('\n\tauthor=\t{'+" and ".join(entries.pop('authors')))
             bib.write("},")
-            if 'year' in entries:
-                    bib.write('\n\tyear=\t{'+ entries['year'] + "},")
-            if 'title' in entries:
-                    bib.write("\n\ttitle=\t{" + entries['title'] + "},")
-            if 'journal' in entries:
-                    bib.write("\n\tjournal=\t{" + entries['journal'] + "},")
-            if 'volume' in entries:
-                    bib.write("\n\tvolume=\t{" + entries['volume'] + "},")
-            if 'number' in entries:
-                    bib.write("\n\tnumber=\t{" + entries['number'] + "},")
-            if 'startpage' in entries:
-                    bib.write("\n\tpages=\t{" + entries['startpage'] + "--" + entries['endpage'] + "},")
-            if 'url' in entries:
-                    bib.write("\n\turl=\t\t{" + entries['url'] + "},")
+            for k,v in entries.items():
+                bib.write('\n\t%s=\t{%s},'%(k,v))
         bib.write("\n}\n")
 
 
