@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # encoding: utf-8
 
 """
@@ -37,96 +37,95 @@ Sun 13 May 2012 14:10:52 BST
 import sys
 import os
 import re
+import argparse
+from pathlib import Path
 
-def main(argv = sys.argv):
+def main(argv):
+    if not argv.outfile:
+        argv.outfile = argv.inputs[0].with_suffix(".bib")
 
-	argc = len(argv)
+    data = []
+    for i in argv.inputs:
+        data.append(r2b_read(i, argv))
 
-	if (argc == 1):
-		print ("Usage is ris2bib.py [FILE] [-v]")
-	else:
-		try:
-			ris = open(argv[1],'r+')
-		except:
-			print ("Error: No such file.")
-			return
-		
-		if (argc == 3 and argv[2] == '-v'):
-			verbose = True
-		else:
-			verbose = False
+    r2b_write(data, argv.outfile)
 
-		entries = r2b_read(ris, verbose)
+def r2b_read(ris, args):
+    """
+    Reads in a .ris file and returns a .bib format 'entries' dictionary with the appropriate information.
+    """
 
-		ris.close()		
-			
-		bib_filename = argv[1][:-4]+'.bib' # strip and replace extension
+    entries = dict()
+    entries['authors']=list() # Allows for multiple authors
+    unparsed_lines = 0
+    
+    with open(ris) as f:
+        for line in f:
+            if re.match("PY",line):
+                    entries['year'] = line[6:10]
+            elif re.match("AU",line):
+                    entries['authors'].append(line[6:-1]) # minus one to remove newline
+            elif re.match("VL",line):
+                    entries['volume'] = line[6:-1]
+            elif re.match("TI",line) or re.match("T1",line):
+                    entries['title'] = line[6:-1]
+            elif re.match("JA",line) or re.match("JO",line):
+                    entries['journal'] = line[6:-1]
+            elif re.match("IS",line):
+                    entries['number'] = line[6:-1]
+            elif re.match("SP",line):
+                    entries['startpage'] = line[6:-1]
+            elif re.match("EP",line):
+                    entries['endpage'] = line[6:-1]
+            elif re.match("UR",line):
+                    entries['url'] = line[6:-1]
+            else:
+                unparsed_lines += 1
+                if args.verbose:
+                    print ('Unparsed line: ' + line[:-1])
 
-		r2b_write(entries, bib_filename)
+    if unparsed_lines and not args.quiet:
+        print('%s unparsed lines in file %s.'%(unparsed_lines, ris))
+    return entries
+    	
+def r2b_write(data, bib_filename):
+    """
+    Writes the .bib formatted dictionary to file using .bib file syntax.
+    """
 
-def r2b_read(ris, verbose):
+    with open(bib_filename,'a') as bib: # strip and replace extension
 
-	"""
-	Reads in a .ris file and returns a .bib format 'entries' dictionary with the appropriate information.
-	"""
+        for entries in data:
+            bib.write('@ARTICLE{' + entries['authors'][0][:entries['authors'][0].index(',')] + \
+                    (entries['year'] if ('year' in entries) else '') + ",") # get surname of first author slicing to ','
+            bib.write('\n\tauthor=\t{'+entries['authors'][0])
+            for entry in entries['authors'][1:]:
+                    bib.write(" and " + entry)
+            bib.write("},")
+            if 'year' in entries:
+                    bib.write('\n\tyear=\t{'+ entries['year'] + "},")
+            if 'title' in entries:
+                    bib.write("\n\ttitle=\t{" + entries['title'] + "},")
+            if 'journal' in entries:
+                    bib.write("\n\tjournal=\t{" + entries['journal'] + "},")
+            if 'volume' in entries:
+                    bib.write("\n\tvolume=\t{" + entries['volume'] + "},")
+            if 'number' in entries:
+                    bib.write("\n\tnumber=\t{" + entries['number'] + "},")
+            if 'startpage' in entries:
+                    bib.write("\n\tpages=\t{" + entries['startpage'] + "--" + entries['endpage'] + "},")
+            if 'url' in entries:
+                    bib.write("\n\turl=\t\t{" + entries['url'] + "},")
+        bib.write("\n}\n")
 
-	entries = dict()
-	entries['authors']=list() # Allows for multiple authors
-
-	for line in ris:
-		if re.match("PY",line):
-			entries['year'] = line[6:10]
-		elif re.match("AU",line):
-			entries['authors'].append(line[6:-1]) # minus one to remove newline
-		elif re.match("VL",line):
-			entries['volume'] = line[6:-1]
-		elif re.match("TI",line) or re.match("T1",line):
-			entries['title'] = line[6:-1]
-		elif re.match("JA",line) or re.match("JO",line):
-			entries['journal'] = line[6:-1]
-		elif re.match("IS",line):
-			entries['number'] = line[6:-1]
-		elif re.match("SP",line):
-			entries['startpage'] = line[6:-1]
-		elif re.match("EP",line):
-			entries['endpage'] = line[6:-1]
-		elif re.match("UR",line):
-			entries['url'] = line[6:-1]
-		elif verbose:
-			print ('Unparsed line: ' + line[:-1])
-	return entries
-		
-def r2b_write(entries,bib_filename):
-
-	"""
-	Writes the .bib formatted dictionary to file using .bib file syntax.
-	"""
-
-	bib = open(bib_filename,'w+') # strip and replace extension
-
-	bib.write('@ARTICLE{' + entries['authors'][0][:entries['authors'][0].index(',')] + \
-		(entries['year'] if ('year' in entries) else '') + ",") # get surname of first author slicing to ','
-	bib.write('\n\tauthor=\t{'+entries['authors'][0])
-	for entry in entries['authors'][1:]:
-		bib.write(" and " + entry)
-	bib.write("},")
-	if 'year' in entries:
-		bib.write('\n\tyear=\t{'+ entries['year'] + "},")
-	if 'title' in entries:
-		bib.write("\n\ttitle=\t{" + entries['title'] + "},")
-	if 'journal' in entries:
-		bib.write("\n\tjournal=\t{" + entries['journal'] + "},")
-	if 'volume' in entries:
-		bib.write("\n\tvolume=\t{" + entries['volume'] + "},")
-	if 'number' in entries:
-		bib.write("\n\tnumber=\t{" + entries['number'] + "},")
-	if 'startpage' in entries:
-		bib.write("\n\tpages=\t{" + entries['startpage'] + "--" + entries['endpage'] + "},")
-	if 'url' in entries:
-		bib.write("\n\turl=\t\t{" + entries['url'] + "},")
-	bib.write("\n}\n")
-
-	bib.close()			
 
 if __name__ == '__main__':
-	main()	
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-v", "--verbose", help="Show each unused line.", action="store_true")
+    parser.add_argument("-q", "--quiet", help="Do not report number of unused lines.", action="store_true")
+    parser.add_argument("-o", "--outfile", help="File to write to. Defaults to first input with .bib extension.", type=Path)
+    parser.add_argument("-w", "--overwrite", help="Overwrite output instead of appending. Use with care.", type=str)
+    parser.add_argument("inputs", nargs="+", type=Path)
+
+    argv = parser.parse_args()
+    main(argv)	
